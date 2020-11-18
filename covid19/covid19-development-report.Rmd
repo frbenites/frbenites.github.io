@@ -490,10 +490,29 @@ ggplot(top, aes(rank, group = Country,
 ```
 
                                
-# Another aspects
+# Final remarks
+
+Pandemic's rapid pace of spread required decisions to be made by goverments and companies around the world with little real-time epidemiological data. 
+
+Non-pharmaceutical interventions (NPI) are public health measures that aim to prevent and control transmission of the disease in the community.  NPIs have been the most effective public health interventions against COVID-19 since vaccines are not yet available.
+
+Even if a vaccine is in sight, countries still need to be prepared to invest in testing strategies that allow for more efficient management of NPIs. 
+
+This probably requires testing the presence of the virus in statistically representative samples of the population and having more information about the people who have been tested (location, age, comorbidities).
+
+It is useful to test who has already had the disease in order to better assess recent history of the epidemic. These data will allow the development of more accurate epidemiological models to predict the development of the pandemic, the demand for hospital beds and the effectiveness of NPIs. 
+
+We all agree that better understanding of the course of the epidemic will make it possible to reduce its life span and its impact on the economy.
 
 <center><img src="https://i.ibb.co/GTR5w62/Ekp-NIkb-XUAA3-OWy.png" width="500" height="400"></center>
 
+This graph (@andyneumeyer) shows the International Monetary Fund's forecasts for GDP growth against Covid19-associated deaths per million people. 
+
+There doesn't seem to be a dilemma between saving lives and economic performances. Countries with effective policies to contain the pandemic tend to grow more.
+
+NPIs policies flatten the curve and save lives but they are very costly for our economies. We have to pick wisely when and for how long NPIs take place, and that is posible investing in a testing strategy with statistical and epidemiological criteria. 
+
+This kind of strategy could save time and resources, maximizing the use of each country limited (and increasingly difficult to fund) budget.
 
 ```{r}
 ##
