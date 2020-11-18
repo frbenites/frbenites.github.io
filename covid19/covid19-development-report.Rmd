@@ -3,7 +3,7 @@ title: 'Report: Development of the Novel Coronavirus COVID-19'
 subtitle: 'Data Source: Jhons Hopkins University'
 author: 'Franco Benites'
 gmail: '1franco.benites@gmail.com'
-date: "November 12, 2020"
+date: "November 16, 2020"
 output:
   html_document:
     number_sections: true
@@ -487,5 +487,15 @@ ggplot(top, aes(rank, group = Country,
         axis.title.y=element_blank(),
         panel.background=element_blank(),
         plot.margin = margin(0.5,3,0.5, 5, "cm"))
+```
+
+                               
+# Another aspects
+
+<center><img src="https://i.ibb.co/GTR5w62/Ekp-NIkb-XUAA3-OWy.png" width="500" height="400"></center>
+
+
+```{r}
+##
 ```
 
