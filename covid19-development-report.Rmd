@@ -1,0 +1,491 @@
+---
+title: 'Report: Development of the Novel Coronavirus COVID-19'
+subtitle: 'Data Source: Jhons Hopkins University'
+author: 'Franco Benites'
+gmail: '1franco.benites@gmail.com'
+date: "November 12, 2020"
+output:
+  html_document:
+    number_sections: true
+    toc: true
+    fig_width: 8
+    fig_height: 5
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+# Introduction
+
+This report presents a cross-sectional and time-series analysis which takes data from relevant metrics of the nCovid-19 outbreak as an input and generates interesting insights about the development of the pandemic at country level.
+
+Although country's relative positions may change after this report, it is useful to the reader as an informative picture of what's happening at the moment. It is of no doubt that readers could always benefit from taking into account precise information about current events in order to improve decision making.
+
+
+<center><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Coronavirus_mundial.jpg/800px-Coronavirus_mundial.jpg" width="500" height="400"></center>
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning= FALSE, message= FALSE}
+library(tidyverse)
+library(plotly)
+library(mapview)
+library(DT)
+library(ggthemes)
+library(gganimate)
+library(COVID19)
+#library(wbstats)
+
+df_confirmed <- read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv')
+
+df_confirmed <- df_confirmed %>% rename(
+  Country = 'Country/Region',
+  State = 'Province/State'
+) %>% 
+  pivot_longer(-c(1:4),
+               names_to = 'Date',
+               values_to = 'Confirmed') %>%
+  select(Date, State, Country, Confirmed)
+
+df_recovered <- read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv')
+
+df_recovered <- df_recovered %>% rename(
+  Country = 'Country/Region',
+  State = 'Province/State'
+) %>% 
+  pivot_longer(-c(1:4),
+               names_to = 'Date',
+               values_to = 'Recovered') %>%
+  select(Date, State, Country, Recovered)
+
+df_deaths <- read_csv('https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv')
+
+
+df_deaths <- df_deaths %>% rename(
+  Country = 'Country/Region',
+  State = 'Province/State'
+) %>% 
+  pivot_longer(-c(1:4),
+               names_to = 'Date',
+               values_to = 'Deaths') %>%
+  select(Date, State, Country, Deaths)
+
+df <- inner_join(df_confirmed, df_recovered)
+df <- inner_join(df, df_deaths)
+
+df$Date <- as.Date(df$Date, format = "%m/%d/%y")
+df$NumDays  <- difftime(df$Date,min(df$Date) ,units="days")+1
+
+
+
+
+```
+                     
+                               
+```{r, warning= FALSE, message= FALSE}
+## Summary Plot Function 
+summary_plot <- function(df,country){
+  
+  if (country!='World') {
+    new_df <- df %>% filter(Country==country)
+    df2 <- new_df %>% filter(Confirmed > 0)
+    end <- as.numeric(tail(new_df$NumDays, n=1))
+    beginning <- as.numeric(first(df2$NumDays))
+    NumDays <- end - beginning
+  } else {
+    new_df = df
+    NumDays <- tail(new_df$NumDays, n=1)
+  }
+  
+  total <- new_df %>% group_by(Date,Country) %>% 
+    summarise(Confirmed = sum(Confirmed),Death = sum(Deaths), Recovered = sum(Recovered)) %>%
+    group_by(Country) %>%
+    summarise(Confirmed = max(Confirmed),Death = max(Death),Recovered = max(Recovered))
+  
+  
+  Active <- sum(total$Confirmed)-sum(total$Recovered)-sum(total$Death)
+  
+  a = paste(round(Active*100/sum(total$Confirmed),1),'%')
+  
+  d = paste(round(sum(total$Death)*100/sum(total$Confirmed),1),'%')
+  
+  data <- data.frame(
+    
+    x=seq(10, 40, 10),
+    y=rep(10,4),
+    h= rep(8,4),
+    w = rep(8,4),
+    color = factor(seq(1,4,1)),
+    
+    value = c(sum(total$Confirmed),
+              Active,
+              NumDays,
+              sum(total$Death)),
+    percent = c('',a,'',d),
+    
+    info = c('Total Cases','Active Cases','Number of days \nsince first case','Death Cases')
+  )
+  
+  plot <- ggplot(data, aes(x, y , height = h, width = w)) +
+    geom_tile(aes(fill = color)) +
+    geom_text(color = "black", fontface = "bold", size = 20,
+              aes(label = value, x = x , y = y + 2), hjust = 0.5) +
+    geom_text(color = "black", fontface = "bold", size = 10,
+              aes(label = info, x = x , y = y - 2), hjust = 0.5) +
+    geom_text(color = "black", fontface = "bold", size = 10,
+              aes(label = percent, x = x , y = y - 0.5), hjust = 0.5) +
+    coord_equal() + guides(fill = FALSE) + theme_void() + scale_fill_brewer(palette="Oranges")
+  
+  return(plot)
+  
+}
+```
+
+                               
+                               
+# Total and Active Cases.{.tabset .tabset-fade}
+
+Confirmed cases in each country are naturally linked to the population size, the policies of social distancing and the compliance degree, but also to the capacity of processing tests in each country.
+
+Active cases are calculated as Total Confirmed Cases - Recovered - Deaths. The following info presents the total number of confirmed cases, active cases and the number of days since the first case was detected for each country.
+
+The ratio of Active Cases to Total Cases is an indicator of the stage of the disease in each country. So, when this proportion is low, it is because most have already recovered. When the ratio is high there is still a high probability that the disease will continue spreading. 
+
+Currently, Latam countries like Argentina and Brazil have relatively low ratios. This appears to be signaling that **the worse is over for now**, and the disease isn't spreading as fast as it was months before. The big concern now, are european countries which have extremely high ratios which can be signaling that they are **facing a new outbreak of this epidemic**. It is interesting to note that USA has been having a high ratio for months, **the epidemic is still living in the USA**. 
+                               
+## World
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'World')
+```
+                               
+## US
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'US')
+```
+
+## India
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'India')
+```    
+                               
+## Brazil
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'Brazil')
+```      
+                               
+## France
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'France')
+```                               
+
+## Russia
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'Russia')
+```         
+                               
+## Spain
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'Spain')
+```               
+
+## Argentina
+```{r fig.width=20, fig.height=5,  warning= FALSE, message= FALSE}
+summary_plot(df,'Argentina')
+``` 
+
+
+            
+# Ranking: Total Cases, Deaths and Recovered (12/11)
+```{r, warning= FALSE, message= FALSE}
+filtered <- filter(df, df$Date == max(df$Date)) %>% group_by(Country) %>% summarise(Confirmed =  sum(Confirmed) , Deaths = sum(Deaths) , Recovered = sum(Recovered))
+filtered <- filtered[order(filtered$Confirmed,decreasing = TRUE),]
+datatable(filtered, class = 'cell-border stripe')
+```
+
+
+
+# Testing policies{.tabset .tabset-fade .tabset-pills}
+
+Testing capacity is linked to the resources each country has to face these costs of control and monitoring of the pandemic and, there is also a political statement in relation to the format and coverage of the tests.
+
+Next panel presents info on the cumulative number of tests carried out per million people, together with the total number of tests carried out. Countries with a population of less than one million people were excluded from the analysis.
+
+The countries with the greatest coverage of tests are United Arab Emirates, Bahrain and Denmark. These countries conducted even **more tests than their population size**. Countries such as Singapore, the United Kingdom, Israel and the United States also carried out strong testing policies. These countries exceed 500,000 tests per million inhabitants. 
+
+It is interesting to note that no Latin American country is in the top 15, ranking countries by tests per million. Chile ranks as the best in the region near the 30th place with more than 260 thousand tests per million.
+
+
+## Tests per million people
+```{r, warning= FALSE, message= FALSE}
+
+x <- covid19(raw = FALSE, country = NULL, verbose = FALSE) %>% rename(Country = administrative_area_level_1)
+
+filtered2 <- x %>% 
+  filter(date == max(date), population >= 1000000) %>% 
+  group_by(Country) %>% 
+  summarise(tests_by_m = round(sum(tests) / (sum(population)/1000000), 0),
+            tests = sum(tests))
+filtered2 <- filtered2[order(filtered2$tests_by_m,decreasing = TRUE),]
+
+
+top <- filtered2[0:15,]
+top <- top %>% mutate(rank = rank(-tests_by_m),
+                             Value_rel = tests_by_m/tests_by_m[rank==1],
+                             Value_lbl = paste0(" ",tests_by_m))
+
+ggplot(top, aes(rank, group = Country, 
+                    fill = as.factor(Country), color = as.factor(Country))) +
+  geom_tile(aes(y = tests_by_m/2,
+                height = tests_by_m,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Country, " ")),size=6, vjust = 0, hjust = 1) +
+  geom_text(aes(y=tests_by_m,label = Value_lbl, hjust=0),size=6) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.background=element_blank(),
+        plot.margin = margin(0.5,4,0.5, 6.5, "cm"))
+
+```
+
+## Total number of tests
+```{r, warning= FALSE, message= FALSE}
+
+
+filtered2 <- filtered2[order(filtered2$tests,decreasing = TRUE),]
+
+top <- filtered2[0:15,]
+top <- top %>% mutate(rank = rank(-tests),
+                      Value_rel = tests/tests[rank==1],
+                      Value_lbl = paste0(" ",tests))
+
+ggplot(top, aes(rank, group = Country, 
+                fill = as.factor(Country), color = as.factor(Country))) +
+  geom_tile(aes(y = tests/2,
+                height = tests,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Country, " ")),size=6, vjust = 0, hjust = 1) +
+  geom_text(aes(y=tests,label = Value_lbl, hjust=0),size=6) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.background=element_blank(),
+        plot.margin = margin(0.5,4,0.5, 6.5, "cm"))
+```
+
+
+# Deaths by Covid-19{.tabset .tabset-fade .tabset-pills}
+
+Analyzing the evolution of deaths seems more representative of the true situation of each country with respect to COVID-19 relative to the evolution of confirmed cases, a metric which is tied to each country testing capacity and policies.
+
+In order to gain a better graphic understanding of the situation, countries are divided in four groups:
+
+- US, India, Brazil and Mexico
+- Argentina, Chile, Ecuador, Colombia and Peru
+- Italy, Spain, United Kingdom and Germany
+- China, Japan, South Korea and Singapore
+
+The last three groups are considered representative of South America, Europe and Asia respectively. The first ones are countries that have been so far most affected by Covid19-associated deaths in absolute terms.
+
+Time is plotted in the horizontal axis. That is to say, days since first case, since each country has a different start date.
+
+```{r, warning= FALSE, message= FALSE}
+country_filter <- function(df,country){
+  
+  country_filtered <- filter(df,Country == country) %>% group_by(Country,Date,NumDays) %>% 
+    summarise(Confirmed =  sum(Confirmed) , Deaths = sum(Deaths), Recovered = sum(Recovered)) %>% 
+    gather(key = Cases, value = Count, c(Confirmed,Deaths,Recovered))
+  
+  country_filtered$NumDays <- country_filtered$NumDays - min(country_filtered$NumDays) + 1
+  
+  return(country_filtered)
+}
+
+US <- country_filter(df,'US')
+India <- country_filter(df,'India')
+Brazil <- country_filter(df,'Brazil')
+Mexico <- country_filter(df,'Mexico')
+worst <- rbind(US, India, Brazil, Mexico)
+
+Argentina <- country_filter(df,'Argentina')
+Chile <- country_filter(df,'Chile')
+Ecuador <- country_filter(df,'Ecuador')
+Colombia <- country_filter(df,'Colombia')
+Peru <- country_filter(df,'Peru')
+latin <- rbind(Argentina, Chile, Ecuador, Colombia, Peru)
+
+Italy <- country_filter(df,'Italy')
+Spain <- country_filter(df,'Spain')
+UnitedKingdom <- country_filter(df,'United Kingdom')
+Germany <- country_filter(df,'Germany')
+oecd <- rbind(Italy, Spain, UnitedKingdom, Germany)
+
+China <- country_filter(df, 'China')
+Singapore <- country_filter(df, 'Singapore')
+SouthKorea <- country_filter(df, 'Korea, South')
+Japan <- country_filter(df, 'Japan')
+
+asia <- rbind(China, Singapore, SouthKorea, Japan)
+
+```
+
+## Worst Performers 
+```{r, warning= FALSE, message= FALSE}
+df$NumDays <- as.numeric(df$NumDays)
+theme <- theme(axis.title.x = element_text(hjust = 0.5),
+               axis.title.y = element_text(hjust = 0.5),
+               plot.title = element_text(hjust = 0.5 , size = 12),
+               text = element_text(hjust = 1,size = 10))
+cnf <- filter(worst, Cases == 'Deaths')
+plot<- ggplot(cnf, aes(x = NumDays, y = Count ,fill = Country , Date = Date ))+
+  geom_line(aes(colour = Country))+
+  labs(x= "Number of Days (Since first case found in respective Country)", y="Number of Deaths",title = "Deaths by COVID-19", fill = 'Cases')+
+    theme #+ scale_x_discrete(limits=c(seq(1,100,2)))
+
+ggplotly(plot, tooltip = c('Count','Date','Country','NumDays') )
+```
+
+## South America (without Brazil)
+```{r, warning= FALSE, message= FALSE}
+df$NumDays <- as.numeric(df$NumDays)
+theme <- theme(axis.title.x = element_text(hjust = 0.5),
+               axis.title.y = element_text(hjust = 0.5),
+               plot.title = element_text(hjust = 0.5 , size = 12),
+               text = element_text(hjust = 1,size = 10))
+cnf <- filter(latin, Cases == 'Deaths')
+plot<- ggplot(cnf, aes(x = NumDays, y = Count ,fill = Country , Date = Date ))+
+  geom_line(aes(colour = Country))+
+  labs(x= "Number of Days (Since first case found in respective Country)", y="Number of Deaths",title = "Deaths by COVID-19", fill = 'Cases')+
+    theme #+ scale_x_discrete(limits=c(seq(1,100,2)))
+
+ggplotly(plot, tooltip = c('Count','Date','Country','NumDays') )
+```
+
+
+## Europe
+```{r, warning= FALSE, message= FALSE}
+df$NumDays <- as.numeric(df$NumDays)
+theme <- theme(axis.title.x = element_text(hjust = 0.5),
+               axis.title.y = element_text(hjust = 0.5),
+               plot.title = element_text(hjust = 0.5 , size = 12),
+               text = element_text(hjust = 1,size = 10))
+cnf <- filter(oecd, Cases == 'Deaths')
+plot<- ggplot(cnf, aes(x = NumDays, y = Count ,fill = Country , Date = Date ))+
+  geom_line(aes(colour = Country))+
+  labs(x= "Number of Days (Since first case found in respective Country)", y="Number of Deaths",title = "Deaths by COVID-19", fill = 'Cases')+
+    theme #+ scale_x_discrete(limits=c(seq(1,100,2)))
+
+ggplotly(plot, tooltip = c('Count','Date','Country','NumDays') )
+```
+
+## Asia (without India)
+```{r, warning= FALSE, message= FALSE}
+df$NumDays <- as.numeric(df$NumDays)
+theme <- theme(axis.title.x = element_text(hjust = 0.5),
+               axis.title.y = element_text(hjust = 0.5),
+               plot.title = element_text(hjust = 0.5 , size = 12),
+               text = element_text(hjust = 1,size = 10))
+cnf <- filter(asia, Cases == 'Deaths')
+plot<- ggplot(cnf, aes(x = NumDays, y = Count ,fill = Country , Date = Date ))+
+  geom_line(aes(colour = Country))+
+  labs(x= "Number of Days (Since first case found in respective Country)", y="Number of Deaths",title = "Deaths by COVID-19", fill = 'Cases')+
+    theme #+ scale_x_discrete(limits=c(seq(1,100,2)))
+
+ggplotly(plot, tooltip = c('Count','Date','Country','NumDays') )
+```
+
+# Complementary analysis of deaths{.tabset .tabset-fade .tabset-pills}
+
+Because death count tends to be higher in more populous countries, it is important to compare how many people have died to how many live in each country.
+
+If you adjust for differences in population size (deaths per million people), the overview also differ. There are countries being considerably affected by the pandemic having a large death toll, but couldn't be so easily spotted in the previous analysis. This is clearly the case of Belgium and Peru.
+
+In the other hand we could analyze death rates across countries. Countries with higher death rates seems to correlate with fragile healthcare systems. One reason that could explain a higher rate is that many people in a country have the disease but do not get the medical care they need to survive.
+
+A particular case is Yemen with a surprisingly high death rate of about 29%. The country's healthcare system is extremely vulnerable, lacking healthcare workers and with many facilities destroyed by airstrikes of the Yemeni Civil War. Also most people are in a situation of extreme vulnerability fueled by a civil war, a cholera outbreak and supply shortages and famine as a result of military blockades.
+
+Naive death rates are calculated, that is to say deaths / confirmed cases. Considering that a large number of cases are asymptomatic and many of these countries haven't performed massive testing, the fatality rate could be overestimated.
+
+## Confirmed deaths per 1 million people
+```{r, warning= FALSE, message= FALSE}
+filtered3 <- x %>% 
+  filter(date == max(date), population >= 1000000) %>% 
+  group_by(Country) %>% 
+  summarise(deaths_by_m = round(sum(deaths) / (sum(population)/1000000), 0),
+            death_rate = round((deaths / confirmed)*100, 3))
+filtered3 <- filtered3[order(filtered3$deaths_by_m,decreasing = TRUE),]
+
+
+top <- filtered3[0:15,]
+top <- top %>% mutate(rank = rank(-deaths_by_m),
+                      Value_rel = deaths_by_m/deaths_by_m[rank==1],
+                      Value_lbl = paste0(" ",deaths_by_m))
+
+ggplot(top, aes(rank, group = Country, 
+                fill = as.factor(Country), color = as.factor(Country))) +
+  geom_tile(aes(y = deaths_by_m/2,
+                height = deaths_by_m,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Country, " ")),size=6, vjust = 0, hjust = 1) +
+  geom_text(aes(y=deaths_by_m,label = Value_lbl, hjust=0),size=6) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.background=element_blank(),
+        plot.margin = margin(0.5,3.5,0.5, 5, "cm"))
+```
+
+## Cumulative death rate
+```{r, warning= FALSE, message= FALSE}
+filtered3 <- filtered3[order(filtered3$death_rate,decreasing = TRUE),]
+
+top <- filtered3[0:15,]
+top <- top %>% mutate(rank = rank(-death_rate),
+                      Value_rel = death_rate/death_rate[rank==1],
+                      Value_lbl = paste0(" ", death_rate, "%"))
+
+ggplot(top, aes(rank, group = Country, 
+                fill = as.factor(Country), color = as.factor(Country))) +
+  geom_tile(aes(y = death_rate/2,
+                height = death_rate,
+                width = 0.8), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(Country, " ")),size=6, vjust = 0, hjust = 1) +
+  geom_text(aes(y=death_rate,label = Value_lbl, hjust=0),size=5) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = FALSE, fill = FALSE) +
+  theme(axis.line=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        panel.background=element_blank(),
+        plot.margin = margin(0.5,3,0.5, 5, "cm"))
+```
+
